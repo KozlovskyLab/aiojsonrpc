@@ -1,0 +1,23 @@
+*.pyc
+.realsync
+.cache
+
+# Packages
+*.egg
+*.egg-info
+
+# OS X
+.DS_Store
+
+# PyCharm
+.idea
+
+# Sublime
+*.sublime-project
+
+# Sphinx
+docs/_build
+
+# Unit test / coverage reports
+.coverage
+.tox
