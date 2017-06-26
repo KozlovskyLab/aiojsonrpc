@@ -29,8 +29,8 @@ __all__ = ['Client']
 
 class Client:
 
-    def __init__(self, *, amqp_uri: str = 'amqp://guest:guest@localhost', loader=None, dumper=None,
-                 encoder=None, loop=None):
+    def __init__(self, *, amqp_uri: str = 'amqp://guest:guest@localhost', loader=None, dumper=None, encoder=None,
+                 loop=None):
         """
 
         Parameters
@@ -80,6 +80,8 @@ class Client:
                 port=self._rabbitmq_port,
                 login=self._rabbitmq_username,
                 password=self._rabbitmq_password,
+                insist=True,
+                heartbeat=2,
                 loop=self._loop)  # use default parameters
         except aioamqp.AmqpClosedConnection:
             logging.info("closed connections")
