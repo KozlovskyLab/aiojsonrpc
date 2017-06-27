@@ -76,7 +76,6 @@ class Client:
 
         """
         parsed_uri = urlparse(amqp_uri)
-        _loop = loop or asyncio.get_event_loop()
         try:
             transport, protocol = await aioamqp.connect(
                 host=parsed_uri.hostname,
@@ -85,7 +84,7 @@ class Client:
                 password=parsed_uri.password if parsed_uri.password is not None else 'guest',
                 insist=True,
                 heartbeat=2,
-                loop=_loop)  # use default parameters
+                loop=loop or asyncio.get_event_loop())  # use default parameters
         except aioamqp.AmqpClosedConnection:
             logger.info("The connection with RabbitMQ is closed.")
             return
@@ -103,7 +102,7 @@ class Client:
         # For `broadcast` method.
         #await self._channel.exchange_declare(exchange_name=self.service_name, type_name='fanout')
 
-        return cls(channel=channel, callback_queue=callback_queue, loop=loop)
+        return cls(channel=channel, callback_queue=callback_queue)
 
 
     # TODO: Add `app_id`?
