@@ -23,22 +23,19 @@ import aioamqp
 
 from aiojsonrpc import WorkerException, BaseEncoder
 
-
 __all__ = ['Client']
 
-logger = logging.getLogger('aiojsonrpc.client')
+logger = logging.getLogger('favbet.__main__')
 
 
 class Client:
-
-    def __init__(self, *, channel, callback_queue, loader=None, dumper=None, encoder=None):
+    def __init__(self, *, amqp_uri: str = 'amqp://guest:guest@localhost', loader=None, dumper=None, encoder=None,
+                 loop=None):
         """
 
         Parameters
         ----------
-        channel :
-            ...
-        callback_queue :
+        amqp_uri : str, optional
             ...
         loader :
             ...
@@ -46,63 +43,94 @@ class Client:
             ...
         encoder :
             ...
+        loop : ...
+            ...
         """
-        #self.service_name = service_name
-
+        # self.service_name = service_name
+        self._amqp_uri = amqp_uri
         self._loader = loader or json.loads
         self._dumper = dumper or json.dumps
         self._encoder = encoder or BaseEncoder
 
-        self._channel = channel
-        self._callback_queue = callback_queue
-        #self._correlation_id = None
-        #self._response = None
+        amqp_parsed_uri = urlparse(self._amqp_uri)
+        self._rabbitmq_hostname = amqp_parsed_uri.hostname
+        self._rabbitmq_port = amqp_parsed_uri.port
+        self._rabbitmq_username = amqp_parsed_uri.username if amqp_parsed_uri.username is not None else 'guest'
+        self._rabbitmq_password = amqp_parsed_uri.password if amqp_parsed_uri.password is not None else 'guest'
+
+        self._loop = loop or asyncio.get_event_loop()
+        self._transport = None
+        self._protocol = None
+        self._channel = None
+        self._callback_queue = None
+        # self._correlation_id = None
+        # self._response = None
         self._waiter = None
 
 
     @classmethod
-    async def initialize(cls, amqp_uri: str = 'amqp://guest:guest@localhost', *, loop=None):
+    async def initialize(cls, *, amqp_uri: str = 'amqp://guest:guest@localhost', loader=None, dumper=None, encoder=None,
+                         loop=None):
         """
 
         Parameters
         ----------
         amqp_uri : str, optional
             ...
-        loop :
+        loader :
             ...
-
-        Returns
-        -------
-
+        dumper :
+            ...
+        encoder :
+            ...
+        loop : ...
+            ...
         """
-        parsed_uri = urlparse(amqp_uri)
+        obj = cls(amqp_uri=amqp_uri, loop=loop)
+        asyncio.ensure_future(obj.main_loop())
+
+        return obj
+
+
+    async def connect(self):
+        """
+        An `__init__` method can't be a coroutine.
+        """
         try:
-            transport, protocol = await aioamqp.connect(
-                host=parsed_uri.hostname,
-                port=parsed_uri.port,
-                login=parsed_uri.username if parsed_uri.username is not None else 'guest',
-                password=parsed_uri.password if parsed_uri.password is not None else 'guest',
+            self._transport, self._protocol = await aioamqp.connect(
+                host=self._rabbitmq_hostname,
+                port=self._rabbitmq_port,
+                login=self._rabbitmq_username,
+                password=self._rabbitmq_password,
                 insist=True,
                 heartbeat=2,
-                loop=loop or asyncio.get_event_loop())  # use default parameters
+                loop=self._loop)  # use default parameters
         except aioamqp.AmqpClosedConnection:
-            logger.info("The connection with RabbitMQ is closed.")
+            logger.info("closed connections")
             return
 
-        logger.info("A connection with RabbitMQ is successfully established <host='{host}', port={port}>.".format(
-            host=parsed_uri.hostname, port=parsed_uri.port))
+        logger.info("connected !")
 
-        channel = await protocol.channel()
+        self._channel = await self._protocol.channel()
 
         # For `call` method (for get results).
-        result = await channel.queue_declare(queue_name='', exclusive=True)  # TODO: add `durable` to save queue on disk?
-        callback_queue = result['queue']
-        await channel.basic_consume(cls._on_response, no_ack=True, queue_name=callback_queue)
+        result = await self._channel.queue_declare(queue_name='',
+                                                   exclusive=True)  # TODO: add `durable` to save queue on disk?
+        self._callback_queue = result['queue']
+        await self._channel.basic_consume(self._on_response, no_ack=True, queue_name=self._callback_queue)
 
         # For `broadcast` method.
-        #await self._channel.exchange_declare(exchange_name=self.service_name, type_name='fanout')
+        # await self._channel.exchange_declare(exchange_name=self.service_name, type_name='fanout')
 
-        return cls(channel=channel, callback_queue=callback_queue)
+
+    async def main_loop(self):
+        try:
+            while True:
+                await self.connect()
+                await self._protocol.wait_closed()
+                await self._protocol.close()
+        finally:
+            await self._protocol.close()
 
 
     # TODO: Add `app_id`?
@@ -126,6 +154,9 @@ class Client:
         """
 
         creation_time = time.time()
+
+        # if self._protocol is None:
+        #     await self.connect()
 
         self._waiter = asyncio.Event()
         self._response = None
@@ -174,6 +205,9 @@ class Client:
         """
         creation_time = time.time()
 
+        # if self._protocol is None:
+        #     await self.connect()
+
         request = dict(method=method, args=args, kwargs=kwargs, timings=dict(creation_time=creation_time))
         await self._channel.basic_publish(
             payload=self._dumper(request, cls=self._encoder),
@@ -184,6 +218,9 @@ class Client:
                 # 'delivery_mode': 2,  # make message persistent
             })
         logger.info("The request to execute the function successfully sent <method='{}'>.".format(method))
+
+
+    # await self._protocol.close()
 
 
     # TODO: Remove this from client?
@@ -206,6 +243,9 @@ class Client:
     #
     #     """
     #     creation_time = time.time()
+    #
+    #     if self._protocol is None:
+    #         await self.connect()
     #
     #     request = dict(method=method, args=args, kwargs=kwargs, timings=dict(creation_time=creation_time))
     #     await self._channel.basic_publish(
@@ -234,6 +274,9 @@ class Client:
         -------
 
         """
+        # if self._protocol is None:
+        #     await self.connect()
+
         await self._channel.exchange(service, 'topic')
         result = await self._channel.queue(queue_name='', durable=False, auto_delete=True)
         queue_name = result['queue']
@@ -259,6 +302,8 @@ class Client:
         -------
 
         """
+
+
         async def wrapper(channel, body, envelope, properties):
             """
 
@@ -282,6 +327,7 @@ class Client:
             else:
                 result = callback(request['event'], *request['args'], **request['kwargs'])
                 end_time = time.time()
+
 
         return wrapper
 
