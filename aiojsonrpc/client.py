@@ -87,7 +87,7 @@ class Client:
             ...
         """
         obj = cls(amqp_uri=amqp_uri, loop=loop)
-        asyncio.ensure_future(obj.main_loop())
+        await obj.connect()
 
         return obj
 
@@ -122,11 +122,15 @@ class Client:
         # For `broadcast` method.
         # await self._channel.exchange_declare(exchange_name=self.service_name, type_name='fanout')
 
+        # For reconnecting
+        asyncio.ensure_future(self.main_loop())
+
 
     async def main_loop(self):
         try:
             while True:
-                await self.connect()
+                if self._protocol is None:
+                    await self.connect()
                 await self._protocol.wait_closed()
                 await self._protocol.close()
         finally:
