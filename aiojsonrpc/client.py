@@ -70,7 +70,7 @@ class Client:
 
     @classmethod
     async def initialize(cls, *, amqp_uri: str = 'amqp://guest:guest@localhost', loader=None, dumper=None, encoder=None,
-                         loop=None):
+                         reconnecting: bool = True, loop=None):
         """
 
         Parameters
@@ -83,18 +83,24 @@ class Client:
             ...
         encoder :
             ...
+        reconnecting : bool, optional
+            ...
         loop : ...
             ...
         """
-        obj = cls(amqp_uri=amqp_uri, loop=loop)
-        await obj.connect()
+        obj = cls(amqp_uri=amqp_uri, loader=loader, dumper=dumper, encoder=encoder, loop=loop)
+        await obj.connect(reconnecting=reconnecting)
 
         return obj
 
 
-    async def connect(self):
+    async def connect(self, *, reconnecting: bool = True):
         """
-        An `__init__` method can't be a coroutine.
+
+        Parameters
+        ----------
+        reconnecting : bool, optional
+            ...
         """
         try:
             self._transport, self._protocol = await aioamqp.connect(
@@ -109,7 +115,8 @@ class Client:
             logger.info("closed connections")
             return
 
-        logger.info("connected !")
+        logger.info("A connection with RabbitMQ is successfully established <host='{host}', port={port}.".format(
+            host=self._rabbitmq_hostname, port=self._rabbitmq_port))
 
         self._channel = await self._protocol.channel()
 
@@ -122,8 +129,13 @@ class Client:
         # For `broadcast` method.
         # await self._channel.exchange_declare(exchange_name=self.service_name, type_name='fanout')
 
-        # For reconnecting
-        asyncio.ensure_future(self.main_loop())
+        if reconnecting is True:
+            # For reconnecting
+            asyncio.ensure_future(self.main_loop())
+
+
+    async def disconnect(self):
+        await self._protocol.close()
 
 
     async def main_loop(self):
@@ -132,9 +144,11 @@ class Client:
                 if self._protocol is None:
                     await self.connect()
                 await self._protocol.wait_closed()
-                await self._protocol.close()
+                await self.disconnect()
+        except aioamqp.AmqpClosedConnection:
+            await self.main_loop()
         finally:
-            await self._protocol.close()
+            await self.disconnect()
 
 
     # TODO: Add `app_id`?
