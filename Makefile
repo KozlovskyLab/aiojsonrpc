@@ -25,32 +25,37 @@ help:
 	@echo "  clean          to clean the project from junk files"
 
 run:
-	python3.6 -m aiojsonrpc
+	@(python3.6 -m aiojsonrpc)
 
 test:
-	/usr/local/bin/python3.6 -m py.test -v tests
+	@(python3.6 -m pytest -v tests)
 
 coverage:
 	@(coverage run --source=aiojsonrpc --module py.test $(TEST_OPTIONS) $(TESTS))
 	@(coverage report)
 
 stylecheck:
-	flake8 --ignore E501
+	@(flake8 --ignore E501)
 
-documentation:
-	@(cd docs; make html)
+typecheck:
+	@(mypy --disallow-untyped-defs --disallow-untyped-calls --ignore-missing-imports aiojsonrpc)
 
-#tox-test:
-#	tox
+tox-test:
+	@(tox)
 
-doc:
+docs:
 	sphinx-build $(INPUT_DOCS_DIR) $(BUILD_DOCS_DIR)
 
-update:
-	/usr/local/bin/python3.6 -m pip install -r requirements_dev.txt
+install-dev:
+	@(python3.6 -m pip install -r requirements_dev.txt)
 
 clean:
 	find . -name '*.pyc' -exec rm -f {} +
 	find . -name '*.pyo' -exec rm -f {} +
 	find . -name '*~' -exec rm -f {} +
 	find . -name '__pycache__' -exec rm -rf {} +
+	find . -name '.mypy_cache' -exec rm -rf {} +
+	find . -name '.tox' -exec rm -rf {} +
+	find . -name '.cache' -exec rm -rf {} +
+	find . -name '.coverage' -exec rm -rf {} +
+

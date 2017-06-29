@@ -108,8 +108,7 @@ class Client:
                 port=self._rabbitmq_port,
                 login=self._rabbitmq_username,
                 password=self._rabbitmq_password,
-                insist=True,
-                heartbeat=2,
+                heartbeat=10,
                 loop=self._loop)  # use default parameters
         except aioamqp.AmqpClosedConnection:
             logger.info("closed connections")

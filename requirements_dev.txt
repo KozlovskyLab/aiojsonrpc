@@ -1,4 +1,6 @@
 pytest
+pytest-cov
 sphinx
 flake8
 mypy
+tox
