@@ -11,18 +11,10 @@
 :Authors:
     - `Vladimir Kozlovski <vladimir@kozlovskilab.com>`_
 """
-from .encoder import BaseEncoder
-from .decoder import BaseDecoder
-from .base import BaseService
-from .exceptions import WorkerException
-from .client import ClientService
-from .worker import WorkerService
+from json import JSONDecoder
 
-__all__ = [
-    'BaseEncoder',
-    'BaseDecoder',
-    'BaseService',
-    'WorkerException',
-    'ClientService',
-    'WorkerService'
-]
+__all__ = ['BaseDecoder']
+
+
+class BaseDecoder(JSONDecoder):
+    pass

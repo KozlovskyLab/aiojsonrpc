@@ -1,2 +1,1 @@
-aioamqp
 asynqp

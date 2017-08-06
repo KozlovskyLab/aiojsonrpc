@@ -13,6 +13,8 @@
 """
 from json import JSONEncoder
 from datetime import datetime
+import traceback
+import types
 
 __all__ = ['BaseEncoder']
 
@@ -25,5 +27,9 @@ class BaseEncoder(JSONEncoder):
     def default(self, obj, **kwargs):
         if isinstance(obj, datetime):
             return obj.strftime('%a, %d %b %Y %H:%M:%S GMT')
+        elif isinstance(obj, BaseException):
+            return obj.__class__.__name__
+        elif isinstance(obj, types.TracebackType):
+            return traceback.format_tb(obj)
         else:
             return JSONEncoder.default(self, obj, **kwargs)
