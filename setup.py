@@ -14,12 +14,12 @@
 from setuptools import setup
 
 setup(name='aiojsonrpc',
-      version='0.1',
+      version='0.2',
       description='Distributed task execution.',
       url='http://github.com/kozlovskilab/aiojsonrpc',
       author='Vladimir Kozlovski',
       author_email='vladimir@kozlovskilab.com',
       license='MIT',
       packages=['aiojsonrpc'],
-      install_requires=['aioamqp'],
+      install_requires=['asynqp'],
       zip_safe=False)

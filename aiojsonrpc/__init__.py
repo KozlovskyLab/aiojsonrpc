@@ -24,5 +24,5 @@ __all__ = [
     'BaseService',
     'WorkerException',
     'ClientService',
-    'WorkerService'
+    'Worker'
 ]
