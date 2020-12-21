@@ -36,9 +36,8 @@ class ClientService(BaseService):
         """
         super(ClientService, self).__init__(*args, **kwargs)
         self._response_queue = None
-        # self._correlation_id = None
-        # self._response = None
-        self._waiter = None
+        self._response = {}
+        self._waiter = {}
 
     @classmethod
     async def initialize(cls, *, amqp_uri: str = 'amqp://guest:guest@localhost', **kwargs):
@@ -100,15 +99,15 @@ class ClientService(BaseService):
         """
         creation_time = time.time()
 
-        self._waiter = asyncio.Event()
-        self._response = None
-        self._correlation_id = str(uuid.uuid4())
+        correlation_id = str(uuid.uuid4())
+        self._waiter[correlation_id] = asyncio.Event()
+        # self._response = None
 
         request = dict(method=rpc_method, args=args, kwargs=kwargs, timings=dict(creation_time=creation_time))
         msg = asynqp.Message(
             body=self._dumper(request, cls=self._encoder),
             reply_to=self._response_queue.name,
-            correlation_id=self._correlation_id,  # If notify not send it
+            correlation_id=correlation_id,  # If notify not send it
             content_type='application/json',
             # delivery_mode=2,  # make message persistent
         )
@@ -117,18 +116,22 @@ class ClientService(BaseService):
         exchange.publish(msg, routing_key=rpc_service)
 
         logger.info("The request to call the function successfully sent <id='{}', method='{}'>.".format(
-            self._correlation_id,
+            correlation_id,
             rpc_method,
         ))
 
-        await self._waiter.wait()
+        await self._waiter[correlation_id].wait()
 
-        if 'result' in self._response:
-            return self._response['result']
+        response = self._response[correlation_id]
+
+        del self._response[correlation_id]
+        del self._waiter[correlation_id]
+
+        if 'result' in response:
+            return response['result']
 
         # TODO: Raise error with same type?
-        # self._response = None
-        raise WorkerException(self._response['error']['message'], code=self._response['error']['code'])
+        raise WorkerException(response['error']['message'], code=response['error']['code'])
 
     # TODO: Rename to run/notify?
     async def execute(self, rpc_service: str, rpc_method: str, *args: list, **kwargs: dict):
@@ -312,8 +315,7 @@ class ClientService(BaseService):
         -------
 
         """
-        if self._correlation_id == msg.correlation_id:
+        if msg.correlation_id in self._waiter:
             # TODO: Validate content_type
-            self._response = self._loader(msg.body.decode())
-
-        self._waiter.set()
+            self._response[msg.correlation_id] = self._loader(msg.body.decode())
+            self._waiter[msg.correlation_id].set()

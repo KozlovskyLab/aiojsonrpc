@@ -14,31 +14,66 @@
 import sys
 import asyncio
 
-from aiojsonrpc import Client
+from aiojsonrpc import WorkerService, ClientService
 
-async def on_event(*args, **kwargs):
-    print(*args, **kwargs)
-    result = await client2.call('rpc_queue', 'hello', message='How are you?')
-    print(result)
-    # await asyncio.sleep(2)
-    # print('YEASASSA')
+
+class TestService(WorkerService, ClientService):
+    NAME = 'test_service'
+
+    def __init__(self, *args, **kwargs):
+        super(WorkerService, self).__init__(*args, **kwargs)
+
+    @classmethod
+    async def initialize(cls, service_name: str, *, api: dict, amqp_uri: str = 'amqp://guest:guest@localhost',
+                         loader=None, dumper=None, encoder=None, decoder=None, sentry_uri=None,
+                         threads_number: int = 10, loop=None):
+        """
+
+        Parameters
+        ----------
+        service_name : str
+            ...
+        api : dict
+            ...
+        amqp_uri : str, optional
+            ...
+        loader :
+            ...
+        dumper :
+            ...
+        encoder :
+            ...
+        decoder :
+            ...
+        sentry_uri : str, optional
+            ...
+        threads_number : int, optional
+            ...
+        loop : asyncio.AbstractEventLoop, optional
+            Event loop is the central execution device provided by `asyncio`.
+        """
+        await super(WorkerService, cls).initialize(service_name=cls.NAME, api=api, amqp_uri=amqp_uri, loader=loader,
+                                                 dumper=dumper, encoder=None, decoder=None, sentry_uri=sentry_uri,
+                                                 threads_number=threads_number, loop=loop)
+        await super(ClientService, cls).initialize(amqp_uri=amqp_uri, loader=loader, dumper=dumper, encoder=encoder,
+                                                   decoder=decoder, loop=loop)
+
+    async def ping(self, i):
+        print('Ping #{}'.format(i))
+        await self.run(self.NAME, 'pong', i)
+
+    async def pong(self, i):
+        i += 1
+        print('Pong #{}'.format(i))
+        await self.run(self.NAME, 'ping', i)
 
 
 async def run():
-    await client.connect()
-    await client2.connect()
-    await client.subscribe('rpc_queue', events=['model.forks.created'], callback=on_event)
+    service = await TestService.initialize('test_service', api={}, amqp_uri='amqp://192.168.100.9')
+    await service.run()
 
-    # i = 0
-    # while True:
-    #     i += 1
-    #     await asyncio.sleep(2)
-    #     result = await client.call('rpc_queue', 'hello', message='How are you? ' + str(i))
-    #     print(result)
 
 if __name__ == '__main__':
-    client = Client(amqp_uri='amqp://192.168.100.9')
-    client2 = Client(amqp_uri='amqp://192.168.100.9')
     event_loop = asyncio.get_event_loop()
     event_loop.run_until_complete(run())
     event_loop.run_forever()

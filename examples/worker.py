@@ -14,11 +14,12 @@
 import logging
 import asyncio
 
-from aiojsonrpc import Worker
+from aiojsonrpc.worker import WorkerService
 
 worker = None
 
 def fib(n):
+    n = int(n)
     if n == 0:
         return 0
     elif n == 1:
@@ -26,6 +27,8 @@ def fib(n):
     else:
         return fib(n-1) + fib(n-2)
 
+async def wait(seconds):
+    await asyncio.sleep(seconds)
 
 async def hello(message):
     print(message)
@@ -35,14 +38,14 @@ async def hello(message):
 
 async def run():
     global worker
-    worker = Worker(service_name='rpc_queue', api={'hello': hello}, amqp_uri='amqp://192.168.100.9')
+    worker = await WorkerService.initialize(service_name='rpc_queue7', api={'hello': hello, 'fib': fib, 'wait': wait}, amqp_uri='amqp://192.168.100.9')
     await worker.run()
 
-    i = 0
-    while True:
-        i += 1
-        await worker.broadcast('model.forks.created', {'message': 'hello ' + str(i)})
-        await asyncio.sleep(2)
+    # i = 0
+    # while True:
+    #     i += 1
+    #     await worker.broadcast('model.forks.created', {'message': 'hello ' + str(i)})
+    #     await asyncio.sleep(2)
 
 
 if __name__ == '__main__':
